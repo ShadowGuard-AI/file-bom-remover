@@ -1,0 +1,1 @@
+`codecs` is a built-in Python module and does not require explicit installation via pip.  Therefore, it should not be included in a requirements file.
