@@ -1,3 +1,5 @@
+![Banner](banner.png)
+
 # file-bom-remover
 Detects and removes Byte Order Marks (BOMs) from the beginning of text-based files. Supports UTF-8, UTF-16LE, and UTF-16BE. Useful for preventing encoding issues and ensuring file compatibility. Can operate recursively on directories. - Focused on File operations and analysis
 
