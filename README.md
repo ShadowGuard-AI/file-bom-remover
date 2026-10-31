@@ -17,3 +17,5 @@ Detects and removes Byte Order Marks (BOMs) from the beginning of text-based fil
 
 ## License
 Copyright (c) ShadowStrikeHQ
+
+Every run reports the number of byte order marks removed, as `BOMs removed: N`. A missing file or directory exits 1. A run that removes nothing exits 1 with a plain nothing removed line, so a nothing run is distinguishable from a worked run.

@@ -3,6 +3,7 @@ import logging
 import os
 import pathlib
 import codecs
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -52,21 +53,15 @@ def remove_bom(file_path, encoding):
 
 
 def process_file(file_path, encoding):
-    """
-    Processes a single file to remove the BOM.
-
-    Args:
-        file_path (str): The path to the file.
-        encoding (str): The encoding to use.
-    """
     try:
         result = remove_bom(file_path, encoding)
-
         if result is None:
             logging.error(f"Failed to process {file_path} (see previous errors).")
-
+            return (0, 1)
+        return (1 if result else 0, 0)
     except Exception as e:
         logging.error(f"Unexpected error processing {file_path}: {e}")
+        return (0, 1)
 
 
 def process_directory(directory, encoding, recursive):
@@ -78,21 +73,26 @@ def process_directory(directory, encoding, recursive):
         encoding (str): The encoding to use.
         recursive (bool): Whether to process subdirectories recursively.
     """
+    removed = 0
+    errors = 0
     try:
         for item in os.listdir(directory):
             item_path = os.path.join(directory, item)
-
             if os.path.isfile(item_path):
-                process_file(item_path, encoding)
+                r, e = process_file(item_path, encoding)
+                removed += r; errors += e
             elif os.path.isdir(item_path) and recursive:
-                process_directory(item_path, encoding, recursive)
+                r, e = process_directory(item_path, encoding, recursive)
+                removed += r; errors += e
             elif os.path.isdir(item_path) and not recursive:
                 logging.info(f"Skipping subdirectory {item_path} (recursive is False).")
-
     except OSError as e:
         logging.error(f"Error accessing directory {directory}: {e}")
+        errors += 1
     except Exception as e:
         logging.error(f"Unexpected error processing directory {directory}: {e}")
+        errors += 1
+    return (removed, errors)
 
 
 def setup_argparse():
@@ -129,14 +129,27 @@ def main():
         file_path = args.file
         if not os.path.isfile(file_path):
             logging.error(f"File not found: {file_path}")
-            return
-        process_file(file_path, args.encoding)
+            print(f"Error: file not found: {file_path}")
+            return 1
+        removed, errors = process_file(file_path, args.encoding)
     elif args.directory:
         directory_path = args.directory
         if not os.path.isdir(directory_path):
             logging.error(f"Directory not found: {directory_path}")
-            return
-        process_directory(directory_path, args.encoding, args.recursive)
+            print(f"Error: directory not found: {directory_path}")
+            return 1
+        removed, errors = process_directory(directory_path, args.encoding, args.recursive)
+    else:
+        return 1
+    print(f"BOMs removed: {removed}")
+    logging.info(f"BOMs removed: {removed}")
+    if errors:
+        print(f"Error: {errors} file(s) could not be processed.")
+        return 1
+    if removed == 0:
+        print("Nothing removed: no byte order mark was found.")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
@@ -145,4 +158,4 @@ if __name__ == "__main__":
     # python main.py -f myfile.txt -e utf-8
     # python main.py -d mydirectory -e utf-16le -r
     # python main.py -d mydirectory -e utf-8
-    main()
+    sys.exit(main())
