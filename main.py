@@ -9,6 +9,11 @@ import sys
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Define BOM encodings
+# Only these three encodings exist here. UTF-32 is absent, and that
+# matters: the UTF-16 LE mark is the first two bytes of the UTF-32 LE
+# mark, so a UTF-32 file processed as utf-16le loses two bytes and is
+# corrupt afterwards. The encoding is the caller's declaration, never
+# detected from the file.
 BOM_ENCODINGS = {
     'utf-8': codecs.BOM_UTF8,
     'utf-16le': codecs.BOM_UTF16_LE,
@@ -36,6 +41,11 @@ def remove_bom(file_path, encoding):
             logging.error(f"Unsupported encoding: {encoding}")
             return None  # Indicate an error
 
+        # Everything is bytes. The file is read whole, checked for the declared
+        # encoding's mark at offset zero, and rewritten in place with the mark
+        # sliced off. There is no backup copy, so a write that fails halfway
+        # leaves a truncated file. Files are small text files in practice, but
+        # the risk is part of the design and worth saying out loud.
         if content.startswith(bom):
             logging.info(f"BOM found in {file_path} ({encoding})")
             new_content = content[len(bom):]
@@ -52,6 +62,9 @@ def remove_bom(file_path, encoding):
         return None  # Indicate an error
 
 
+# remove_bom returns a three way result: True removed, False no mark,
+# None error. This wrapper flattens it into (removed, errors) counts so
+# the directory walk and main can both work in totals.
 def process_file(file_path, encoding):
     try:
         result = remove_bom(file_path, encoding)
@@ -76,6 +89,9 @@ def process_directory(directory, encoding, recursive):
     removed = 0
     errors = 0
     try:
+        # listdir order is filesystem order, not sorted. Processing order does
+        # not affect the totals, but log lines from two runs over the same
+        # directory can appear in different orders.
         for item in os.listdir(directory):
             item_path = os.path.join(directory, item)
             if os.path.isfile(item_path):
@@ -146,6 +162,9 @@ def main():
     if errors:
         print(f"Error: {errors} file(s) could not be processed.")
         return 1
+    # Removing nothing is a failure exit, even when nothing errored. A
+    # caller scripting around this tool asked for a mark to be gone, and an
+    # untouched file should not read as success.
     if removed == 0:
         print("Nothing removed: no byte order mark was found.")
         return 1
